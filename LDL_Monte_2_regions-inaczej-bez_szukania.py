@@ -1,3 +1,4 @@
+#!/usr/bin/python 
 
 
 import numpy as np 
@@ -40,7 +41,7 @@ cuda.init()
 device = cuda.Device(0)
 ctx = device.make_context()
 print device.name(), device.compute_capability(),device.total_memory()/1024.**3,"GB"
-print "a tak wogóle to mamy tu:",cuda.Device.count(), " urządzenia"
+print "a tak wogole to mamy tu:",cuda.Device.count(), " urzadzenia"
 
 # <markdowncell>
 
@@ -167,9 +168,9 @@ __device__  float D(float x)
 __global__ void advance_tex(float *x_i,int *alive, int *it_i,unsigned int *rng_state,int sps)           
     {{
         int idx = blockDim.x*blockIdx.x + threadIdx.x;
-        float x, x1, x0;     //x1 to delta Y z publikacji
+        float x, x1;//, x0;     //x1 to delta Y z publikacji
         int k,it;       
-        float n1, n2, n3,c1; 	//tez do losowania 
+        float n1, n2, c1; 	//tez do losowania 
         unsigned int lrng_state;   //liczby losowe
         lrng_state = rng_state[idx];   //
         
@@ -179,7 +180,7 @@ __global__ void advance_tex(float *x_i,int *alive, int *it_i,unsigned int *rng_s
 if (it>=0) {{
     for (k=0;k<sps;k++){{//sps
         x = x_i[idx];
-        x0 = x;
+       // x0 = x;
 
         if(x>-1)
         {{
@@ -192,12 +193,12 @@ if (it>=0) {{
             if(x>-1.0)
             {{
                 //Dyfuzja
-                zbiornik = (x<{L[0]}f && x>=0);
-                zbiornik1 = (x>={L[0]}f);
+               // zbiornik = (x<{L[0]}f && x>=0);
+                //zbiornik1 = (x>={L[0]}f);
                 n1 = rng_uni(&lrng_state);
 		        n2 = rng_uni(&lrng_state);
-                n3 = rng_uni(&lrng_state);
-		        bm_trans(n1, n2);         //rozklad normalny
+              //  n3 = rng_uni(&lrng_state);
+		 //       bm_trans(n1, n2);         //rozklad normalny
                 x1 =fabsf( x + sqrtf({dt}f * D(x)  * 2.0f) * n1);
                 x = fabsf(x + sqrtf({dt}f  *D(x1) * 2.0f) * n1 + {dt}f*(1-sigma(x))*V(x));// //
                 if (x<={L[0]}f||x>({L[0]}f+{L[1]}f+{L[2]}f+{L[3]}f))
@@ -276,7 +277,7 @@ print xinit.max()
 dx_i = gpuarray.to_gpu (xinit)
 da_i = gpuarray.to_gpu (ainit)
 dit = gpuarray.to_gpu (it)
-dg_i =  gpuarray.to_gpu (ginit)
+#dg_i =  gpuarray.to_gpu (ginit)
 #print da_i.get()
 rng_state = np.array(np.random.randint(1,2147483648,size=n_tracers),dtype=np.uint32)
 rng_state_g = gpuarray.to_gpu(rng_state)
@@ -288,7 +289,7 @@ print n_tracers,Nsteps,n_tracers*Nsteps/1e9,"G","dt=",dt
 
 # Uruchomienie symulacji
 # -----------------------
-# Co x kroków kontrola koncentracji w kontenerze
+# Co x krokow kontrola koncentracji w kontenerze
 
 # <codecell>
 
