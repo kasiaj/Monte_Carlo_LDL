@@ -1,5 +1,31 @@
 #!/usr/bin/python 
+# -*- coding: utf-8 -*-
+# <nbformat>3.0</nbformat>
 
+# <headingcell level=1>
+
+# Model akomodacji LDL'a przy wykorzystaniu metody stochastycznej.
+
+# <markdowncell>
+
+# Wstęp
+# -----
+# 
+# 
+# W tym dokumencie opisany jest sposób modelowania transportu LDL w ścianie naczynia. Program rozwiązuje problem transportu zgodnie z równaniem:
+#   
+# \begin{eqnarray}
+#       \frac{\partial c}{\partial t} +(1-\sigma)\vec u\cdot\nabla c & = & D_{eff} \nabla^2 c - k c
+# \end{eqnarray}
+# 
+# Przyjmując jednowymiarowy model, w kierunku radialnym, prędkość  filtracji $\vec u$ ta musi być stała na całym odcinku filtracji przez ścianę. 
+# Poniższe symulacje przyjmują wartość $v=2.3\cdot 10^{-5} \frac{mm}{s}=0.023 \frac{\mu m}{s}.$ Jednak w  efektywna prędkość 
+# unoszenia jest dana wzrorem $(1-\sigma)\vec u$, gdzie $\sigma$ to współczynnik odbicia. Oznacza to, że w zależności od efektywnych własności materiału
+# w którym poruszają się cząsteczki LDL mamy różne prędkości dryftu. 
+# 
+# Symulacja wykorzystuje metodę stochastyczną.
+
+# <codecell>
 
 import numpy as np 
 from scipy.sparse import dia_matrix
@@ -21,27 +47,36 @@ import pycuda.driver as cuda
 # <codecell>
 
 nazwy       = [  'container','endothel' , 'intima']
-#D           = [   6e-11     ,  6e-11  , 5.4e-6  , 3.18e-9  ]
-#V           = [   5.6708144518415195e-5    ,  5.6708144518415195e-5    , 5.6708144518415195e-5   , 5.6708144518415195e-5  ]
-#sigma       = [  0.82148658915977035,    0.82148658915977035, 0.8272, 0.9827 ]
-L           = [    0.2      ,  1.8        , 10.   , 2.  ]
-k_react     = [    0.       ,  0.        , 0. , 0.]
-D           = [   6e-11  ,  6e-11     , 5.4e-8  , 3.18e-8 ]#, 5e-8   ]
-V           = [0.026533788267959334, 0.026533788267959334, 0.026533788267959334, 0.026533788267959334]# , 2.6783499775030101e-5  ]#, 2.2e-5  , 2.2e-5 ]
-sigma       = [  0.93108378484950194,     0.93108378484950194, 0.8272, 0.9827]#0.9827, 0.8836] 
 
+D           =[   6e-11     ,  6e-11  , 5.4e-6 , 3.18e-9  ,  5e-8] 
+V           = [   2.6783499775030101e-5    ,  2.6783499775030101e-5    , 2.6783499775030101e-5  , 2.6783499775030101e-5, 2.6783499775030101e-5 ]
+sigma       = [  0.93108378484950194,     0.93108378484950194, 0.8272, 0.9827, 0.8836]
+L           = [    0.2      ,  1.8        ,10. ,2.0, 200.]
+k_react     = [    0.       ,  0.        , 0. , 0., 1.4e-4]
 
 #Change units to um
 D = [D_*1e6 for D_ in D]
-#V = [V_*1e3 for V_ in V]
-dt=1.0#0.001
+V = [V_*1e3 for V_ in V]
+dt=0.01#1.0#
 
+# <codecell>
+
+
+# <markdowncell>
+
+# Container jest sztucznym tworem, który ma zapewnić stałe stężenie na granicy endothelium.
+
+# <markdowncell>
+
+# Inicjalizacja CUDY
+
+# <codecell>
 
 cuda.init()
-device = cuda.Device(0)
+device = cuda.Device(1)
 ctx = device.make_context()
 print device.name(), device.compute_capability(),device.total_memory()/1024.**3,"GB"
-print "a tak wogole to mamy tu:",cuda.Device.count(), " urzadzenia"
+print "a tak wogóle to mamy tu:",cuda.Device.count(), " urządzenia"
 
 # <markdowncell>
 
@@ -87,10 +122,6 @@ __device__ void bm_trans(float& u1, float& u2)
 """
     
     src = """
-//texture<float, 2> img_fx;
-//texture<float, 2> img_fy;
-
-
 
 __device__  float D(float x)
 {{
@@ -107,11 +138,14 @@ __device__  float D(float x)
     else if (x<{L[0]}f+{L[1]}f+{L[2]}f+{L[3]}f){{
         return {D[3]}f;
     }}
- 
-  }}
+    else
+    {{
+        return {D[4]}f;
+    }}
+}}
 
 
-  __device__  float sigma(float x)
+__device__  float sigma(float x)
 {{
     if(x<{L[0]}f)
     {{
@@ -126,12 +160,13 @@ __device__  float D(float x)
     else if (x<{L[0]}f+{L[1]}f+{L[2]}f+{L[3]}f){{
         return {s[3]}f;
     }}
-
-  }}
-
-
+    else
+    {{
+        return {s[4]}f;
+    }}
+}}
   
-    __device__  float V(float x)
+__device__  float V(float x)
 {{
     if(x<{L[0]}f)
     {{
@@ -146,86 +181,101 @@ __device__  float D(float x)
     else if (x<{L[0]}f+{L[1]}f+{L[2]}f+{L[3]}f){{
         return {V[3]}f;
     }}
-
-  }}
+    else{{
+        return {V[4]}f;
+    }}
+}}
   
-
-
-  __device__  float k_react(float x)
-  {{
+__device__  float k_react(float x)
+{{
     if (x>{L[0]}f+{L[1]}f+{L[2]}f+{L[3]}f)
     {{
-      return {k_react[1]}f;
-      }}
+      return {k_react[4]}f;
+    }}
     else
     {{
       return -1.0;
-      }}
-  }}
+    }}
+}}
   
     
     
-__global__ void advance_tex(float *x_i,int *alive, int *it_i,unsigned int *rng_state,int sps)           
-    {{
-        int idx = blockDim.x*blockIdx.x + threadIdx.x;
-        float x, x1;//, x0;     //x1 to delta Y z publikacji
-        int k,it;       
-        float n1, n2, c1; 	//tez do losowania 
-        unsigned int lrng_state;   //liczby losowe
-        lrng_state = rng_state[idx];   //
-        
+__global__ void advance_tex(float *x_i, unsigned int *rng_state,int sps)      
+{{
+    int idx = blockDim.x*blockIdx.x + threadIdx.x;
+    float x, x1;                                     //x1 to delta Y z publikacji
+    int k;       
+    float n1, n2,c1; 	                             //do losowania
+    unsigned int lrng_state;                         //liczby losowe
+     
+    for (k=0;k<sps;k++){{
         x = x_i[idx];
-        it = it_i[idx];
-
-if (it>=0) {{
-    for (k=0;k<sps;k++){{//sps
-        x = x_i[idx];
-       // x0 = x;
-
-        if(x>-1)
+        lrng_state = rng_state[idx];
+        if(x>-1.0)
         {{
             //Reakcja lub pochlanianie
             c1 = rng_uni(&lrng_state);
-            if(c1<=k_react(x)*{dt}f|| x>({L[0]}f+{L[1]}f+{L[2]}f+{L[3]}f))
+            if(c1<=k_react(x)*{dt}f|| x>=({L[0]}f+{L[1]}f+{L[2]}f+{L[3]}f+{L[4]}f))
             {{
                 x = -1.0;
             }}
             if(x>-1.0)
             {{
                 //Dyfuzja
-               // zbiornik = (x<{L[0]}f && x>=0);
-                //zbiornik1 = (x>={L[0]}f);
                 n1 = rng_uni(&lrng_state);
 		        n2 = rng_uni(&lrng_state);
-              //  n3 = rng_uni(&lrng_state);
-		 //       bm_trans(n1, n2);         //rozklad normalny
+		        bm_trans(n1, n2);         //rozklad normalny
+                
                 x1 =fabsf( x + sqrtf({dt}f * D(x)  * 2.0f) * n1);
-                x = fabsf(x + sqrtf({dt}f  *D(x1) * 2.0f) * n1 + {dt}f*(1-sigma(x))*V(x));// //
-                if (x<={L[0]}f||x>({L[0]}f+{L[1]}f+{L[2]}f+{L[3]}f))
+                if (x1>=({L[0]}f+{L[1]}f+{L[2]}f+{L[3]}f+{L[4]}f))                    //dla x1 rowniez nalezy zastosowac warunek brzegowy
                 {{
-                  x=-1.0;
-                  }}
-                            }}
-          
+                    x=-1.0;
+                }}
+                else
+                {{
+                    x = fabsf(x + sqrtf({dt}f  *D(x1) * 2.0f) * n1 + {dt}f*(1-sigma(x))*V(x));
+                }}
+                if (x<={L[0]}f||x>({L[0]}f+{L[1]}f+{L[2]}f+{L[3]}f+{L[4]}f))
+                {{
+                    x=-1.0;                                                           //(1)  oproznienie kontenera i warunek brzegowy dla x 
+                                                                                      //gdy tracer po dyfuzji nadal znajduje sie w kontenerze lub sietam pojawil, zostaje deaktywowany, aby zapewnic pusty obszar dla generacji tracerow 
+                                                                                      //wowczas nie ma koniecznosci liczenia ile tracerow znajduje sie w zadanym obszarze i ile nalezaloby uzupelnic, z gory znana jest liczba trecerow do aktywacji     
+                }}
+            }}
+            x_i[idx] = x;
         }}
-        if (x==-1)
+        
+        __syncthreads();   
+    
+        if(idx%{tracers}=={tracers}-1)
         {{
-          alive[idx+({tracers}-1)-(idx%{tracers})]=idx; //w alive znajduje sie numer czastki ktora ma x=-1 (czyli jest jeszcze nieaktywna w symulacji) 
-          }}
-    
- x_i[idx] = x;
-__syncthreads();   
- //wypelnienie zbiornia, robi to tylko 2622 watkow, czyli 1 na blok
-    
-   if(idx%{tracers}=={tracers}-1)
-   {{
-        x_i[alive[idx]]=rng_uni(&lrng_state)*{L[0]}f;
-     }}
+            bool found = false;
+            int rnd;
+      
+             //Poszukiwnie wolnego watku, do symulacji tracera w obszarze stalego stezenia (2)
+             int tmp;
+             tmp=k;
+             rnd=idx+fmodf(k,{tracers})-{tracers}+1;                  //Jako pierwszy sprawdzany jest k-ty (k-numer kroku) element w danym bloku CUDY  [blok 1: 0-tracers-1, blok 2:tracers-2*tracers-1, ...]
+             while(!found)
+             {{
+                 if (x_i[rnd]==-1.0)
+                 {{
+                     //znaleziona
+                     found = true;
+                     x_i[rnd] = rng_uni(&lrng_state)*{L[0]}f;
+                 }}
+                 else
+                 {{   
+                     tmp++;
+                     rnd=idx+fmodf(tmp,{tracers})-{tracers}+1;      //Gy pierwsza proba sie nie powiodla sprawdzany jest sąsiedni element, z uwzglednieniem zawiniecia, aby nie opuscic biezacego bloku
+                          
+                 }}
+             }}
+        }}
              
         __syncthreads(); 
         rng_state[idx] = lrng_state;
     }}
-}}
 }}
 """.format(**pars)
     mod = SourceModule(rng_src+src,options=["--use_fast_math"]  )
@@ -247,67 +297,57 @@ __syncthreads();
 # <codecell>
 
 Nsteps = 1024*40
-blocks = 2622#ilosc blokow=ilosc czastek w kontenerze o stalej gestosci
-block_size = 300#264
+blocks = 2622      #ilosc blokow odpowiada ilosci tracerow w obszarze o stalym stezeniu, a kazdym bloku symulowany jest zawsze 1 tracer z tego obszaru.(2)
+                   #w kazdym watku jest zagwarantowane (1) ze po kazdym kroku symulacji kontener jest oprozniony
+block_size = 300   #dobrany aby calkowita ilosc tracerow w ciagu calej symulacji byla odpowiednia
+
 
 n_tracers = blocks*block_size   
-#testinit =  np.arange(n_tracers,dtype=np.int32)
+
 xinit = np.ones(n_tracers,dtype=np.float32)
 xinit = xinit * (-1)
+#polozenie -1 znaczy, ze dany watek nie jest jeszcze wykorzystywany w symulacji, ale jest gotowy do wykorzystania, dzieki temu symulacja nie musi byc sterowana w nadzednym watku, aby kazdorazowo zmieniac ilosc tracerow i odpowiadajacych im watkow
 
-ainit =-1* np.ones(n_tracers, dtype=np.int32)#zeros
-#ginit = np.ones(n_tracers, dtype=np.bool)
-for i in range(0, n_tracers, 300):
-    xinit[i] = (L[0]) * np.random.random_sample() #polozenia poczatkowe -10 % w kontenerze+L[1]+L[1]+L[2]+L[3]+L[4]
-   # ainit[i] = True
+distance=block_size
+for i in range(0, n_tracers, distance):
+    xinit[i] = (L[0]) * np.random.random_sample()
 
 
-it = np.arange(n_tracers,dtype=np.int32)  #Numery iteracji potem zmienic na zeros
 tracers= ((0 < xinit) & (xinit <= L[0])).sum()
 print "  tracers" , tracers
-distance=300
+
 pars = {'dt':dt, 'L':L, 'D':D, 's':sigma, 'k_react':k_react, 'V':V, 'tracers':distance}#, 'sps': sps}
 mod,advance = get_kernel(pars)
 
 
-#it = np.random.randint(-1,1,n_tracers).astype(np.int32)
-print xinit.max()
-#print xinit.min()
-
 dx_i = gpuarray.to_gpu (xinit)
-da_i = gpuarray.to_gpu (ainit)
-dit = gpuarray.to_gpu (it)
-#dg_i =  gpuarray.to_gpu (ginit)
-#print da_i.get()
 rng_state = np.array(np.random.randint(1,2147483648,size=n_tracers),dtype=np.uint32)
 rng_state_g = gpuarray.to_gpu(rng_state)
-print it
+
 
 print n_tracers,Nsteps,n_tracers*Nsteps/1e9,"G","dt=",dt
 
-# <markdowncell>
+
 
 # Uruchomienie symulacji
 # -----------------------
-# Co x krokow kontrola koncentracji w kontenerze
+# Co x kroków kontrola koncentracji w kontenerze
 
-# <codecell>
+
 
 import time
 test = np.int32(0)
-sps = np.int32(20000)
+sps = np.int32(10)#2000000 950000
 size = np.int32(n_tracers)
-                                          #(1)
-                                            #(2)
+                                   
 
 print (Nsteps/2/sps)
 start = time.time()
-for k in range(1500):#(Nsteps/2/sps):80000
-    advance(dx_i,da_i,dit,rng_state_g, sps, block=(block_size,1,1), grid=(blocks,1))#,dg_i, size
-    #print ((0 < dx_i.get()) & (dx_i.get() <= L[0])).sum()
-    if k%100==50:
-        print da_i.get()[299]
-        with open('test2.log', 'w') as f:
+for k in range(1):
+    advance(dx_i,da_i,dit,rng_state_g, sps, block=(block_size,1,1), grid=(blocks,1))
+    print ((0 < dx_i.get()) & (dx_i.get() <= L[0])).sum()
+    if k%1==0:
+        with open('test3.log', 'w') as f:
             f.writelines(str(j)  + '\n' for j in dx_i.get())
 
 
@@ -315,13 +355,8 @@ ctx.synchronize()
 elapsed = (time.time() - start)  
 print elapsed,np.nonzero(np.isnan(dx_i.get()))[0].shape[0]
 
-# <codecell>
 
 
 
 ctx.pop()
 ctx.detach()
-
-
-
-
