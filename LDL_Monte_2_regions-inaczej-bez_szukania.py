@@ -1,32 +1,4 @@
 #!/usr/bin/python 
-# -*- coding: utf-8 -*-
-# <nbformat>3.0</nbformat>
-
-# <headingcell level=1>
-
-# Model akomodacji LDL'a przy wykorzystaniu metody stochastycznej.
-
-# <markdowncell>
-
-# Wstęp
-# -----
-# 
-# 
-# W tym dokumencie opisany jest sposób modelowania transportu LDL w ścianie naczynia. Program rozwiązuje problem transportu zgodnie z równaniem:
-#   
-# \begin{eqnarray}
-#       \frac{\partial c}{\partial t} +(1-\sigma)\vec u\cdot\nabla c & = & D_{eff} \nabla^2 c - k c
-# \end{eqnarray}
-# 
-# Przyjmując jednowymiarowy model, w kierunku radialnym, prędkość  filtracji $\vec u$ ta musi być stała na całym odcinku filtracji przez ścianę. 
-# Poniższe symulacje przyjmują wartość $v=2.3\cdot 10^{-5} \frac{mm}{s}=0.023 \frac{\mu m}{s}.$ Jednak w  efektywna prędkość 
-# unoszenia jest dana wzrorem $(1-\sigma)\vec u$, gdzie $\sigma$ to współczynnik odbicia. Oznacza to, że w zależności od efektywnych własności materiału
-# w którym poruszają się cząsteczki LDL mamy różne prędkości dryftu. 
-# 
-# Symulacja wykorzystuje metodę stochastyczną.
-
-# <codecell>
-
 import numpy as np 
 from scipy.sparse import dia_matrix
 import scipy as sp
@@ -64,7 +36,7 @@ dt=0.01#1.0#
 
 # <markdowncell>
 
-# Container jest sztucznym tworem, który ma zapewnić stałe stężenie na granicy endothelium.
+# Container jest sztucznym tworem, ktory ma zapewnic stale stezenie na granicy endothelium.
 
 # <markdowncell>
 
@@ -76,7 +48,7 @@ cuda.init()
 device = cuda.Device(1)
 ctx = device.make_context()
 print device.name(), device.compute_capability(),device.total_memory()/1024.**3,"GB"
-print "a tak wogóle to mamy tu:",cuda.Device.count(), " urządzenia"
+print "a tak wogole to mamy tu:",cuda.Device.count(), " urzadzenia"
 
 # <markdowncell>
 
@@ -200,7 +172,7 @@ __device__  float k_react(float x)
   
     
     
-__global__ void advance_tex(float *x_i, unsigned int *rng_state,int sps)      
+__global__ void advance_tex(float *x_i, unsigned int *rng_state,int sps)    
 {{
     int idx = blockDim.x*blockIdx.x + threadIdx.x;
     float x, x1;                                     //x1 to delta Y z publikacji
@@ -267,7 +239,7 @@ __global__ void advance_tex(float *x_i, unsigned int *rng_state,int sps)
                  else
                  {{   
                      tmp++;
-                     rnd=idx+fmodf(tmp,{tracers})-{tracers}+1;      //Gy pierwsza proba sie nie powiodla sprawdzany jest sąsiedni element, z uwzglednieniem zawiniecia, aby nie opuscic biezacego bloku
+                     rnd=idx+fmodf(tmp,{tracers})-{tracers}+1;      //Gy pierwsza proba sie nie powiodla sprawdzany jest saiedni element, z uwzglednieniem zawiniecia, aby nie opuscic biezacego bloku
                           
                  }}
              }}
@@ -302,13 +274,13 @@ blocks = 2622      #ilosc blokow odpowiada ilosci tracerow w obszarze o stalym s
 block_size = 300   #dobrany aby calkowita ilosc tracerow w ciagu calej symulacji byla odpowiednia
 
 
-n_tracers = blocks*block_size   
+n_tracers = blocks*block_size   #polowa to martwe dusze
 
 xinit = np.ones(n_tracers,dtype=np.float32)
 xinit = xinit * (-1)
 #polozenie -1 znaczy, ze dany watek nie jest jeszcze wykorzystywany w symulacji, ale jest gotowy do wykorzystania, dzieki temu symulacja nie musi byc sterowana w nadzednym watku, aby kazdorazowo zmieniac ilosc tracerow i odpowiadajacych im watkow
-
 distance=block_size
+
 for i in range(0, n_tracers, distance):
     xinit[i] = (L[0]) * np.random.random_sample()
 
@@ -316,35 +288,32 @@ for i in range(0, n_tracers, distance):
 tracers= ((0 < xinit) & (xinit <= L[0])).sum()
 print "  tracers" , tracers
 
-pars = {'dt':dt, 'L':L, 'D':D, 's':sigma, 'k_react':k_react, 'V':V, 'tracers':distance}#, 'sps': sps}
+pars = {'dt':dt, 'L':L, 'D':D, 's':sigma, 'k_react':k_react, 'V':V, 'tracers':distance}
 mod,advance = get_kernel(pars)
+
 
 
 dx_i = gpuarray.to_gpu (xinit)
 rng_state = np.array(np.random.randint(1,2147483648,size=n_tracers),dtype=np.uint32)
 rng_state_g = gpuarray.to_gpu(rng_state)
 
-
 print n_tracers,Nsteps,n_tracers*Nsteps/1e9,"G","dt=",dt
 
-
+# <markdowncell>
 
 # Uruchomienie symulacji
 # -----------------------
-# Co x kroków kontrola koncentracji w kontenerze
 
-
+# <codecell>
 
 import time
 test = np.int32(0)
 sps = np.int32(10)#2000000 950000
 size = np.int32(n_tracers)
                                    
-
-print (Nsteps/2/sps)
 start = time.time()
 for k in range(1):
-    advance(dx_i,da_i,dit,rng_state_g, sps, block=(block_size,1,1), grid=(blocks,1))
+    advance(dx_i,rng_state_g, sps, block=(block_size,1,1), grid=(blocks,1))
     print ((0 < dx_i.get()) & (dx_i.get() <= L[0])).sum()
     if k%1==0:
         with open('test3.log', 'w') as f:
@@ -354,8 +323,6 @@ for k in range(1):
 ctx.synchronize()
 elapsed = (time.time() - start)  
 print elapsed,np.nonzero(np.isnan(dx_i.get()))[0].shape[0]
-
-
 
 
 ctx.pop()
