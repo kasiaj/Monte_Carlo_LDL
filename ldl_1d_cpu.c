@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <time.h>
 #define PI 3.14159265358979f
 //nazwy       = [  'container','endothel' , 'intima'];
 //dobre
@@ -86,7 +86,7 @@ float step(double x, double dt, double *L, double *SD, double *k_react, double *
         n1 =bm_trans(n1, n2);         //rozklad normalny
                
         double x1 =fabs( x + SDx(x, SD, L) * n1);
-        printf ("xiniti_trakcie= %lf\n", x1); 
+     //   printf ("xiniti_trakcie= %lf\n", x1); 
 if (x1>=(L[0]+L[1]+L[2]+L[3]+L[4]))                    //dla x1 rowniez nalezy zastosowac warunek brzegowy
         {
             x=-1.0;
@@ -109,6 +109,14 @@ if (x1>=(L[0]+L[1]+L[2]+L[3]+L[4]))                    //dla x1 rowniez nalezy z
 
 int main() 
 {
+
+char buff[100];
+time_t now = time (0);
+    strftime (buff, 100, "%H:%M:%S", localtime (&now));
+    printf ("%s\n", buff);
+
+
+
 double D[5]         ={   6e-11     ,  6e-11  , 5.4e-6 , 3.18e-9  ,  5e-8} ;
 double V[5]           = {   2.6783499775030101e-5    ,  2.6783499775030101e-5    , 2.6783499775030101e-5  , 2.6783499775030101e-5, 2.6783499775030101e-5 };
 double sigma[5]       = {  0.93108378484950194,     0.93108378484950194, 0.8272, 0.9827, 0.8836};
@@ -118,18 +126,20 @@ double SD[5];
 double VV[5];
 double dt=0.01;
 int i;
+
 //Change units to um
 for (i =0; i<5; i++)
 {
 
 	SD[i]=sqrt(D[i]*dt*2.0*1e6) ;
 	VV[i]=dt*(1-sigma[i])*V[i]*1e3;
- 	printf ("SDi= %lf\n", SD[i]);
+ 	//printf ("SDi= %lf\n", SD[i]);
 }
 int tracers = 2500;
 int block_size = 256;  
 int n_tracers = tracers*block_size;
 int zarodek;
+
 zarodek= time(NULL);
 srand(zarodek);
 double xinit[n_tracers];
@@ -137,20 +147,20 @@ double x;
 for (i =0; i<tracers; i++)
 {
 	xinit[i]=(float)rand()/(float)RAND_MAX*L[0];
-	printf ("xiniti= %lf\n", xinit[i]);
+//	printf ("xiniti= %lf\n", xinit[i]);
 }
 int j,k, reservior, m;
-for (k=0; k<300;k++)
+for (k=0; k<1000000;k++)
 {
     for (j=0;j<n_tracers;j++)
     {
           x = xinit[j];
           if (x>-1.0)
 	   {
-		printf ("xiniti_0= %lf\n", xinit[j]);
+	//	printf ("xiniti_0= %lf\n", xinit[j]);
 
               xinit[j] = step(x, dt, L, SD, k_react, V);
-		printf ("xiniti_1= %lf\n", xinit[j]);
+	//	printf ("xiniti_1= %lf\n", xinit[j]);
 
 	   }
      }
@@ -169,6 +179,11 @@ for (k=0; k<300;k++)
      }
 
 }
+
+buff[100];
+ now = time (0);
+    strftime (buff, 100, "%H:%M:%S", localtime (&now));
+    printf ("%s\n", buff);
 FILE *pliczek;
 pliczek = fopen("test2.log","w");
 for(i = 0; i < n_tracers; i++)
