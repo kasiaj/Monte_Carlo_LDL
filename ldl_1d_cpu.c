@@ -159,7 +159,7 @@ for (k=0; k<1000000;k++)
 	   {
 	//	printf ("xiniti_0= %lf\n", xinit[j]);
 
-              xinit[j] = step(x, dt, L, SD, k_react, V);
+              xinit[j] = step(x, dt, L, SD, k_react, VV);
 	//	printf ("xiniti_1= %lf\n", xinit[j]);
 
 	   }
