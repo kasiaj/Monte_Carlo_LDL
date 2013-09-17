@@ -125,7 +125,7 @@ double k_react[5]     = {    0.       ,  0.        , 0. , 0., 1.4e-4};
 double SD[5];
 double VV[5];
 double dt=0.01;
-int i;
+int i, j;
 
 //Change units to um
 for (i =0; i<5; i++)
@@ -144,13 +144,22 @@ zarodek= time(NULL);
 srand(zarodek);
 double xinit[n_tracers];
 double x;
-for (i =0; i<tracers; i++)
+j=tracers;
+for (i =0; i<n_tracers; i++)
 {
-	xinit[i]=(float)rand()/(float)RAND_MAX*L[0];
+	if (j>0)
+	{
+		xinit[i]=(float)rand()/(float)RAND_MAX*L[0];
+		j--;
+	}
+	else
+	{
+		xinit[i]=-1.0;
+	}
 //	printf ("xiniti= %lf\n", xinit[i]);
 }
-int j,k, reservior, m;
-for (k=0; k<1000000;k++)
+int k, reservior, m;
+for (k=0; k<3000000;k++)
 {
     for (j=0;j<n_tracers;j++)
     {
