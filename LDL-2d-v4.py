@@ -57,12 +57,6 @@ sigma       = [  0.93108378484950194,     0.93108378484950194, 0.8272, 0.9827, 0
 L           = [    0.2      ,  1.8        ,10. ,2.0, 200.]
 k_react     = [    0.       ,  0.        , 0. , 0., 1.4e-4]
 
-#nazwy       = [  'container','endothel' , 'intima', 'IEL'   ,'media']
-#D           =[   6e-9     ,  6e-9  , 5.4e-6 , 3.18e-9  ,  5e-8] #[   6e-11     ,  6e-11  , 5.4e-6  , 3.18e-9  ]
-#V           = [   2.6783499775030101e-5    ,  2.6783499775030101e-5    , 2.6783499775030101e-5  , 2.6783499775030101e-5, 2.6783499775030101e-5 ]#, 2.6783499775030101e-5  
-#sigma       = [  0.93108378484950194,     0.93108378484950194, 0.8272, 0.9827, 0.8836]#, 0.9827]#0.9827, 0.8836] 
-#L           = [    0.2      ,  1.8        ,10. ,1.,0.]#2.0, 200.]#,5.    ]#,    2.   , 200.   ]#test rozmiaru kontenera
-#k_react     = [    0.       ,  0.        , 0. , 0., 0.]#1.4e-4]
 
 K           = [   3.32e-15  , 2e-10   ,4.392e-13, 2e-12   ]
 mu          = [   0.72e-3   , 0.72e-3 , 0.72e-3 , 0.72e-3 ]
@@ -186,7 +180,7 @@ __device__  float velsigma(float x, float y)
 
   if(x>{L[0]}f+{L[1]}f+{L[2]}f+{L[3]}f)
     {{
-       return ({vvel0}f+({vvelm}f))*{s[4]}f*copysignf(1, y)*copysignf(1, y)+expf(0.001*y)-expf(0.001*y);//+exp(y)-exp(y)  ;//*copysignf(1, y)*copysignf(1, y) *exp(0.01f)/exp(0.01f)*cos(0.0000001f*y)
+       	return ({vvel0}f+({vvelm}f))*{s[4]}f*copysignf(1, y)*copysignf(1, y)+expf(0.001*y)-expf(0.001*y);//+exp(y)-exp(y)  ;//*copysignf(1, y)*copysignf(1, y) *exp(0.01f)/exp(0.01f)*cos(0.0000001f*y)
     }}
     else if (x>{L[0]}f+{L[1]}f+{L[2]}f){{
         return ({vvel0}f+({vvelm}f))*{s[3]}f*copysignf(1, y)*copysignf(1, y)+expf(0.001*y)-expf(0.001*y);//*exp(y)/exp(y) ;//*copysignf(1, y)*copysignf(1, y) *exp(0.01f)/exp(0.01f)*cos(0.0000001f*y)
@@ -196,12 +190,12 @@ __device__  float velsigma(float x, float y)
     }}
     else {{
        
-       return ({vvel0}f+({vvelm}f))*{s[1]}f*copysignf(1, y)*copysignf(1, y)+expf(0.001*y)-expf(0.001*y);//*exp(y)/exp(y);//return ({vel0}f+(({velm}f)))*exp(y)/exp(y) ;//*copysignf(1, y)*copysignf(1, y) ; *exp(0.01f)/exp(0.01f)  *cos(0.0000001f*y)
+       	return ({vvel0}f+({vvelm}f))*{s[1]}f*copysignf(1, y)*copysignf(1, y)+expf(0.001*y)-expf(0.001*y);//*exp(y)/exp(y);//return ({vel0}f+(({velm}f)))*exp(y)/exp(y) ;//*copysignf(1, y)*copysignf(1, y) ; *exp(0.01f)/exp(0.01f)  *cos(0.0000001f*y)
     }}
  
   
 }}
- /* 
+ /*                                             //  WSS relation
 
 __device__  float velsigma(float x, float y)
 {{
@@ -215,9 +209,6 @@ __device__  float velsigma(float x, float y)
     else if (x>{L[0]}f+{L[1]}f){{
         return {V[2]}f;
     }}
-   // else if (x>{L[0]}f){{
-   //     return {V[1]}f;
-   // }}
     else
     {{
         return {V[0]}f;
@@ -245,21 +236,17 @@ __global__ void advance_tex(float *x_i, float *y_i,int *indexes,unsigned int *rn
 {{
     int idx = blockDim.x*blockIdx.x + threadIdx.x;
     float x, x1, y, y1;                                     //x1 to delta Y z publikacji
-y=0;    
-int k;       
+    y=0;    
+    int k;       
     float n1, n2; 	                             //do losowania
     unsigned int lrng_state;                         //liczby losowe
     x = x_i[idx];
     lrng_state = rng_state[idx];
- y = y_i[idx];
+    y = y_i[idx];
     for (k=0;k<sps;k++){{
-       // x = x_i[idx];
-        
-       // lrng_state = rng_state[idx];
         if(x>-1.0)
         {{
             //Reakcja lub pochlanianie
-            //c1 = rng_uni(&lrng_state);
             if(rng_uni(&lrng_state)<=k_react(x)*{dt}f)
             {{
                 x = -1.0;
@@ -268,9 +255,8 @@ int k;
             {{
                 //Dyfuzja
                 n1 = rng_uni(&lrng_state);
-		        n2 = rng_uni(&lrng_state);
-		       // n3 = rng_uni(&lrng_state);
-		        bm_trans(n1, n2);         //rozklad normalny
+		n2 = rng_uni(&lrng_state);
+		bm_trans(n1, n2);         //rozklad normalny
                 
                 x1 =fabsf( x + SD(x) * n1);
                 if (x1>=({L[0]}f+{L[1]}f+{L[2]}f+{L[3]}f+{L[4]}f))                    //dla x1 rowniez nalezy zastosowac warunek brzegowy
@@ -279,71 +265,59 @@ int k;
                 }}
                 else
                 {{
-                //  y = y_i[idx];
                     x = fabsf(x + SD(x1) * n1 + velsigma(x, y));
                 
-                if (x<={L[0]}f||x>({L[0]}f+{L[1]}f+{L[2]}f+{L[3]}f+{L[4]}f))
-                {{
-                    x=-1.0;                                                          /* //(1)  oproznienie kontenera i warunek brzegowy dla x 
+                    if (x<={L[0]}f||x>({L[0]}f+{L[1]}f+{L[2]}f+{L[3]}f+{L[4]}f))
+                    {{
+                    	x=-1.0;                                                          /* //(1)  oproznienie kontenera i warunek brzegowy dla x 
                                                                                       //gdy tracer po dyfuzji nadal znajduje sie w kontenerze 
                                                                                       //lub sietam pojawil, zostaje deaktywowany, aby zapewnic
                                                                                       //pusty obszar dla generacji tracerow 
                                                                                       //wowczas nie ma koniecznosci liczenia ile tracerow 
                                                                                       //znajduje sie w zadanym obszarze i ile nalezaloby uzupelnic, 
                                                                                       z gory znana jest liczba trecerow do aktywacji   */   
-                }}
-                else
-                {{
+                    }}
+                    else
+                    {{
 
                   
-                  y=y + SD(x1)* n2 ;
+                    	y=y + SD(x1)* n2 ;
                   
-                if (y>{limit_up}f)
-                {{
-                    y = 2*{limit_up}f-y;
-                }}  
-                else if (y<{limit_down}f)
-                {{
-                    y=2*({limit_down}f)-y;
-                }}
-                 //  y_i[idx]=y1;
-}}
-            }}
-    }}
-           // x_i[idx] = x;
-         
-            
-        }}
-        
-        
-        if (x==-1)
-        {{
-            indexes[idx+({distance}-1)-(idx%{distance})]=idx;                          //w tym polu znajduje sie indeks komorki tablicy w ktorej jest -1
+                    	if (y>{limit_up}f)
+                    	{{
+                    	    y = 2*{limit_up}f-y;
+                    	}}  
+                    	else if (y<{limit_down}f)
+                    	{{
+                    	    y=2*({limit_down}f)-y;
+                    	}}
+		    }}
+            	}}
+    	    }}     
+    	}}
+    	if (x==-1)
+    	{{
+    	    indexes[idx+({distance}-1)-(idx%{distance})]=idx;                          //w tym polu znajduje sie indeks komorki tablicy w ktorej jest -1
                                                                                      //nie wazne ktoremu watkowi uda sie zapisac jako ostatniemu, wazne jest by bylo tam -1
                                                                                      //zamiast szukac zagladamy do tej wartosci w tabeli i mamy id niezywej czastki
                                                                                      //moze da sie to zrobic jeszcze inaczej
-        }}
-        __syncthreads();   
+    	}}
+    	__syncthreads();   
     
-        if(idx== indexes[idx+({distance}-1)-(idx%{distance})])
-        {{
-
-            //int iddd=indexes[idx];
-            x=rng_uni(&lrng_state)*{L[0]}f;
+    	if(idx== indexes[idx+({distance}-1)-(idx%{distance})])
+    	{{
+     	    x=rng_uni(&lrng_state)*{L[0]}f;
             y=rng_uni(&lrng_state)*(fabsf({limit_down}f)+fabsf({limit_up}f))+({limit_down}f);
-            //indexes[idx]=-1;
-        }}
+    	}}
              
         __syncthreads(); 
-       // rng_state[idx] = lrng_state;
-    }}
-y_i[idx]=y;
-rng_state[idx] = lrng_state;
-x_i[idx] = x;
+  }}
+  y_i[idx]=y;
+  rng_state[idx] = lrng_state;
+  x_i[idx] = x;
 }}
 """.format(**pars)
     mod = SourceModule(rng_src+src,options=["--use_fast_math"]  )
-   # print src
     advance_tex = mod.get_function("advance_tex")
     return mod,advance_tex
 
@@ -384,10 +358,6 @@ def prepare():
     
     return A,a , B, C,d, E, F, G
 
-# <codecell>
-
-
-# <codecell>
 
 def klj(y):
     Rcell = 15e-3 # mm
@@ -406,14 +376,12 @@ def klj(y):
     print srodek, szerokosc
     WSS=srodek+szerokosc*np.sign(y)
     
-   # WSS=10.0-9.9*exp(-y*y/(2*5*5));
     SI = 0.38*np.exp(-0.79*WSS) + 0.225*np.exp(-0.043*WSS);
     MC = 0.003797* np.exp(14.75*SI); 
     LC = 0.307 + 0.805 * MC ;
     phi = LC*A;
     return d *phi;
 
-# <codecell>
 
 def VV(y):
     
@@ -438,7 +406,6 @@ def VV(y):
     E = mmHg2Pa*70.0
     return E/RWC*1e6;
 
-# <codecell>
 
 def sig(y):
     w=14.3*1e-6
@@ -453,7 +420,6 @@ def sig(y):
     c = Kend_70mmHg - Klj
     return 1-(b*klj(y))/(c+klj(y));
 
-# <codecell>
 
 print VV(0)
 
@@ -480,6 +446,7 @@ ainit =-1* np.ones(n_tracers, dtype=np.int32)
 for i in range(0, n_tracers, distance):
     xinit[i] = (L[0]) * np.random.random_sample()
     yinit[i] = -500.0+1000.0*np.random.random_sample()
+    
 #Z pliku
 #xinit = np.ones(n_tracers,dtype=np.float32)
 #binit= np.genfromtxt("testx_5norm18",dtype=np.float32)
